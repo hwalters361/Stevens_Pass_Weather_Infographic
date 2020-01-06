@@ -33,49 +33,38 @@ def remove_letters(string):
             string=string.replace(i,"")
     return string
 
-
 #items with the same key, values combined into tuple. also contains a 
-def combine_two_dicts(dict1, dict2):
-    days = ["Monday", "Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+def make_weather_dict(list1, list2):
+    total_list = list1+list2
+    total_list.sort()
     
-    if len(dict1) > len(dict2):
-        bigger = dict1
-        smaller = dict2
-    elif len(dict1) < len(dict2):
-        bigger = dict2
-        smaller = dict1
-    else:
-        #the value for bigger/smaller here doesn't matter since both dicts same length
-        bigger = dict1
-        smaller = dict2
-    
-    bigger_key_list = list(bigger.keys())
-    smaller_key_list = list(smaller.keys())
-    bigger_val_list = list(bigger.values())
-    smaller_val_list = list(smaller.values())
-    
-    final_dict = dict()
-    start = 0
-    if bigger_key_list[0] not in days and smaller_key_list[0] not in days:
-            final_dict["Today"] = (bigger_val_list[0], smaller_val_list[0])
-            start = 1
+    temp_dict = dict()
+    for i in range(len(total_list)):
+        item = total_list[i]
+        #removes the number at the beginning of the item placed there for order
+        item = item[1:]
+        
+        #finds the index of the slash separating the temperature from the day title
+        slash_index = item.find("/")
+        
+        #finds the day_title based off the slash location
+        day_title = item[slash_index+1:]
+        
+        #finds the temp value based off the slash location
+        temp = item[:slash_index]
+        
+        temp_dict_keys = list(temp_dict.keys())
+        
+        if day_title in temp_dict_keys:
+            prev_value = temp_dict[day_title]
+            #takes the first value of the tuple, so the previous value isn't a tuple
+            first,x = prev_value
             
-    for i in range(start,len(bigger)):
-        
-        if (bigger_key_list[i] in smaller_key_list):
-            #find the index of the key in dict 2 for the value
-            smaller_key_index = smaller_key_list.index(bigger_key_list[i])
-            new_val = (bigger_val_list[i],smaller_val_list[smaller_key_index])
-            final_dict[bigger_key_list[i]] = new_val
+            temp_dict[day_title] = (first, temp)
         else:
-            final_dict[bigger_key_list[i]] = (bigger_val_list[i], None)
-            try:
-                final_dict[smaller_key_list[i]] = (smaller_val_list[i], None)
-            except IndexError:
-                continue
-    return final_dict
-                
-        
+            temp_dict[day_title] = (temp, None)
+
+    return temp_dict
 
 def main():
     #NOAA HIGHS AND LOWS + SHORT DESCRIPTION
@@ -84,45 +73,47 @@ def main():
     noaa_results = noaa_soup.find(id='seven-day-forecast-list')
     
     noaa_twelve_hr_forecasts = noaa_results.find_all('li', class_='forecast-tombstone')
-    
-    noaa_high_temps = dict()
-    noaa_low_temps = dict()
+
     noaa_desc = dict()
     
+    noaa_high_temps = []
+    noaa_low_temps = []
+    order = 0
     for forecast in noaa_twelve_hr_forecasts:
-        if forecast.find('p', class_='temp-low') == None and forecast.find('p', class_="temp-high") != None:
-            day_title = str(forecast.find('p', class_='period-name').text)
-            day_title = re.sub(r"(?<=\w)([A-Z])", r" \1", day_title)
+        day_title = str(forecast.find('p', class_='period-name').text)
+        day_title = re.sub(r"(?<=\w)([A-Z])", r" \1", day_title).replace("Night","").replace(" ","")
+        
+        if "NOW" in day_title.replace(" ",""):
+            continue
+        if forecast.find('p', class_='temp-low') == None:
+        #must have a high temperature
             #removes all tags and then removes all whitespace
             high_temp = str(forecast.find('p', class_='temp-high').text)
             #removes all letters and all html tags from high_temp
             high_temp = "High "+remove_letters(high_temp)
             
-            noaa_high_temps[day_title] = high_temp
+            noaa_high_temps.append(str(order)+high_temp + "/" + day_title)
             
             description = str(forecast.find('p', class_='short-desc').text)
             noaa_desc[day_title] = description
-            
-        elif forecast.find('p', class_='temp-high') == None and forecast.find('p', class_='temp-low') != None:
-            day_title= str(forecast.find('p', class_='period-name').text)
-            day_title = day_title.replace("Night","")
-            
+        else:
             low_temp = str(forecast.find('p', class_='temp-low').text)
             #removes all letters and all html tags
             low_temp = "Low "+remove_letters(low_temp)
             
-            noaa_low_temps[day_title] = low_temp
+            noaa_low_temps.append(str(order)+low_temp + "/" + day_title)
             
             description = str(forecast.find('p', class_='short-desc').text)
             noaa_desc[day_title] = description
-    
-    noaa_all_temps = combine_two_dicts(noaa_high_temps, noaa_low_temps)
-    
+        order+=1
+
+    noaa_all_temps = make_weather_dict(noaa_high_temps, noaa_low_temps)
+
     print("~~~~0~~~~\nWeather Forecast NOAA:\n")
     print_dict(noaa_all_temps)
     print("~~~~\nWeather Descriptions NOAA:\n")
     print_dict(noaa_desc)
-    
+    """
     #ACCU WEATHER HIGHS AND LOWS + SHORT DESCRIPTION
     accu_soup = get_page_content("https://www.accuweather.com/en/us/stevens-pass/98826/daily-weather-forecast/103026_poi")
     
@@ -226,18 +217,19 @@ def main():
     accu_day_titles = list(accu_all_temps.keys())
     weather_day_titles = list(weather_all_temps.keys())
     
-    
+    all_tm = 150
+    noaa_lm = 50
     for i in range(3):
         break
     
-    draw.text((50,150), noaa_day_titles[0], fill=color, font=font)
+    draw.text((noaa_lm,all_tm), noaa_day_titles[0], fill=color, font=font)
         
         
     im.show()
     image_name_output = 'Stevens Pass Infographic Template.jpg'
     im.save(image_name_output)
     
-    
+    """
 if __name__ == "__main__":
     main()
     
